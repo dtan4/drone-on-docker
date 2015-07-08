@@ -1,0 +1,13 @@
+db:
+  image: postgres:9.4
+drone:
+  build: .
+  ports:
+    - "80:80"
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+  links:
+    - db
+  environment:
+    - DRONE_DATABASE_DRIVER=postgres
+    - DRONE_DATABASE_DATASOURCE="host=db user=postgres dbname=drone sslmode=disable"
