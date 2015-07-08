@@ -11,6 +11,5 @@ RUN wget -O /tmp/drone.deb downloads.drone.io/master/drone.deb && \
     rm drone.deb
 
 WORKDIR /app
-COPY docker-entrypoint.sh /app/
 
-CMD ["./docker-entrypoint.sh"]
+CMD ["droned"]
