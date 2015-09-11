@@ -4,35 +4,7 @@ coreos:
   update:
     group: beta
     reboot-strategy: off
-  # etcd:
-  #   # generate a new token for each unique cluster from https://discovery.etcd.io/new
-  #   # WARNING: replace each time you 'vagrant destroy'
-  #   #discovery: https://discovery.etcd.io/<token>
-  #   addr: $public_ipv4:4001
-  #   peer-addr: $public_ipv4:7001
-  # etcd2:
-  #   #generate a new token for each unique cluster from https://discovery.etcd.io/new
-  #   #discovery: https://discovery.etcd.io/<token>
-  #   # multi-region and multi-cloud deployments need to use $public_ipv4
-  #   advertise-client-urls: http://$public_ipv4:2379
-  #   initial-advertise-peer-urls: http://$private_ipv4:2380
-  #   # listen on both the official ports and the legacy ports
-  #   # legacy ports can be omitted if your application doesn't depend on them
-  #   listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
-  #   listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
-  # fleet:
-  #   public-ip: $public_ipv4
-  # flannel:
-  #   interface: $public_ipv4
   units:
-    # - name: etcd.service
-    #   command: start
-    # # To use etcd2, comment out the above service and uncomment these
-    # # Note: this requires a release that contains etcd2
-    # #- name: etcd2.service
-    # #  command: start
-    # - name: fleet.service
-    #   command: start
     - name: settimezone.service
       command: start
       content: |
@@ -57,6 +29,61 @@ coreos:
 
         [Install]
         WantedBy=sockets.target
+    - name: postgres.service
+      command: start
+      enable: true
+      content: |
+        [Unit]
+        Description=PostgreSQL
+        After=docker.service
+        Requires=docker.service
+
+        [Service]
+        TimeoutStartSec=0
+        User=core
+        ExecStartPre=-/usr/bin/docker kill postgres
+        ExecStartPre=-/usr/bin/docker rm postgres
+        ExecStartPre=/usr/bin/docker pull postgres:9.4
+        ExecStart=/usr/bin/docker run --name postgres -p 5432:5432 postgres:9.4
+        ExecStop=/usr/bin/docker stop postgres
+
+        [Install]
+        WantedBy=multi-user.target
+    - name: postgres-setup.service
+      command: start
+      content: |
+        [Unit]
+        Description=Set the timezone
+        After=postgres.service
+        Requires=postgres.service
+
+        [Service]
+        ExecStartPre=-/usr/bin/docker kill postgres-setup
+        ExecStartPre=-/usr/bin/docker rm postgres-setup
+        ExecStartPre=/usr/bin/docker pull postgres:9.4
+        ExecStart=/usr/bin/docker run --name postgres-setup --link postgres:db postgres:9.4 psql postgres://postgres@db:5432 -c 'create database drone;'
+        RemainAfterExit=yes
+        Type=oneshot
+    - name: drone.service
+      command: start
+      enable: true
+      content: |
+        [Unit]
+        Description=Drone
+        After=postgres-setup.service
+        Requires=postgres-setup.service
+
+        [Service]
+        TimeoutStartSec=0
+        User=core
+        ExecStartPre=-/usr/bin/docker kill drone
+        ExecStartPre=-/usr/bin/docker rm drone
+        ExecStartPre=/usr/bin/docker pull quay.io/wantedly/drone:latest
+        ExecStart=/usr/bin/docker run --name drone --link postgres:db -p 8000:8000 -v /var/run/docker.sock:/var/run/docker.sock -e DRONE_DATABASE_URL=postgres -e DRONE_DATABASE_DATASOURCE="host=db user=postgres dbname=drone sslmode=disable" -e DRONE_GITHUB_CLIENT=<%= ENV["DRONE_GITHUB_CLIENT"] %> -e DRONE_GITHUB_SECRET=<%= ENV["DRONE_GITHUB_SECRET"] %> quay.io/wantedly/drone:latest
+        ExecStop=/usr/bin/docker stop drone
+
+        [Install]
+        WantedBy=multi-user.target
 write_files:
   - path: /etc/ssh/sshd_config
     permissions: 0600
