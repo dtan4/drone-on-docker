@@ -78,8 +78,8 @@ coreos:
         User=core
         ExecStartPre=-/usr/bin/docker kill drone
         ExecStartPre=-/usr/bin/docker rm drone
-        ExecStartPre=/usr/bin/docker pull quay.io/wantedly/drone:latest
-        ExecStart=/usr/bin/docker run --name drone --link postgres:db -p 8000:8000 -v /var/run/docker.sock:/var/run/docker.sock -e DRONE_DATABASE_URL=postgres -e DRONE_DATABASE_DATASOURCE="host=db user=postgres dbname=drone sslmode=disable" -e DRONE_GITHUB_CLIENT=<%= ENV["DRONE_GITHUB_CLIENT"] %> -e DRONE_GITHUB_SECRET=<%= ENV["DRONE_GITHUB_SECRET"] %> quay.io/wantedly/drone:latest
+        ExecStartPre=/usr/bin/docker pull quay.io/dtan4/drone:0.4.0
+        ExecStart=/usr/bin/docker run --name drone --link postgres:db -p 8000:8000 -v /var/run/docker.sock:/var/run/docker.sock -e DATABASE_DRIVER=postgres -e DATABASE_CONFIG="postgres://postgres@db:5432/drone?sslmode=disable" -e REMOTE_DRIVER=github -e REMOTE_CONFIG="https://github.com?client_id=<%= ENV["DRONE_GITHUB_CLIENT"] %>&client_secret=<%= ENV["DRONE_GITHUB_SECRET"] %>" quay.io/dtan4/drone:0.4.0
         ExecStop=/usr/bin/docker stop drone
 
         [Install]
